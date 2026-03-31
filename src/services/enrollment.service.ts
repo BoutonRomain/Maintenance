@@ -2,7 +2,7 @@ import { Enrollment } from "../models/enrollment.model";
 import { User } from "../models/user.model";
 import { Course } from "../models/course.model";
 import { scheduleSlotService } from "./scheduleSlot.service";
-import { CustomError } from "../middlewares/errorHandler";
+import { createHttpError } from "../middlewares/errorHandler";
 
 export class EnrollmentService {
   public async getAllEnrollements(): Promise<Enrollment[]> {
@@ -22,39 +22,29 @@ export class EnrollmentService {
   ): Promise<Enrollment> {
     const student = await User.findByPk(studentId);
     if (!student) {
-      const error: CustomError = new Error('Étudiant non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Étudiant non trouvé');
     }
 
     if (student.role !== 'student') {
-      const error: CustomError = new Error('L\'utilisateur doit être un étudiant pour s\'inscrire');
-      error.status = 400;
-      throw error;
+      createHttpError(400, 'L\'utilisateur doit être un étudiant pour s\'inscrire');
     }
 
     const course = await Course.findByPk(courseId);
     if (!course) {
-      const error: CustomError = new Error('Cours non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Cours non trouvé');
     }
 
     const existingEnrollment = await Enrollment.findOne({
       where: { studentId, courseId }
     });
     if (existingEnrollment) {
-      const error: CustomError = new Error('L\'étudiant est déjà inscrit à ce cours');
-      error.status = 409;
-      throw error;
+      createHttpError(409, 'L\'étudiant est déjà inscrit à ce cours');
     }
 
     const { canEnroll, conflicts } = await scheduleSlotService.canStudentEnrollInCourse(studentId, courseId);
     if (!canEnroll) {
       const conflictNames = conflicts.map(c => c.conflictingCourse.name).join(', ');
-      const error: CustomError = new Error(`Impossible de s'inscrire : conflit d'horaire avec ${conflictNames}`);
-      error.status = 409;
-      throw error;
+      createHttpError(409, `Impossible de s'inscrire : conflit d'horaire avec ${conflictNames}`);
     }
 
     return Enrollment.create({ studentId: studentId, courseId: courseId, enrollmentAt: enrollmentAt, createAt: createAt, updateAt: updateAt });
@@ -71,9 +61,7 @@ export class EnrollmentService {
   public async deleteEnrollmentByStudentAndCourse(studentId: number, courseId: number): Promise<void> {
     const enrollment = await Enrollment.findOne({ where: { studentId, courseId } });
     if (!enrollment) {
-      const error: CustomError = new Error('Inscription non trouvée');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Inscription non trouvée');
     }
     await enrollment.destroy();
   }

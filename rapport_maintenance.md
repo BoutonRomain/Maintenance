@@ -287,3 +287,144 @@ Cela signifie : "bloquer si ce n'est pas l'utilisateur lui-même **ET** pas un t
 - Mettre en place un pipeline **CI/CD** avec exécution automatique des tests
 - Conteneuriser l'application avec **Docker**
 - Séparer la configuration par environnement (`development`, `staging`, `production`)
+
+---
+
+## 8. Analyse et Refactoring — Code Smells
+
+### 8.1 Code Smell 1 : Code Dupliqué — Pattern de lancement d'erreurs HTTP
+
+**Type de Code Smell :** Code dupliqué (Duplicated Code)  
+**Technique de refactoring :** Extract Method (Martin Fowler)
+
+#### Problème identifié
+
+Le même bloc de 3 lignes est répété **50+ fois** à travers tous les services et contrôleurs :
+
+```typescript
+const error: CustomError = new Error('Message');
+error.status = 404;
+throw error;
+```
+
+Ce pattern viole le principe **DRY** (Don't Repeat Yourself). Si le format des erreurs devait évoluer (ajout de logging, de codes d'erreur structurés, d'un stack trace personnalisé), il faudrait modifier chaque occurrence individuellement, soit plus de 50 endroits répartis sur 9 fichiers.
+
+#### Pourquoi c'est un problème
+
+1. **Maintenabilité** : toute modification du format d'erreur nécessite 50+ changements
+2. **Risque d'incohérence** : certaines occurrences utilisent `let`, d'autres `const`, certaines typent avec `CustomError`, d'autres avec `any`
+3. **Lisibilité** : 3 lignes de boilerplate pour une action sémantiquement simple
+
+#### Refactoring appliqué
+
+Ajout d'une fonction utilitaire `createHttpError()` dans [errorHandler.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/middlewares/errorHandler.ts) :
+
+```typescript
+export function createHttpError(status: number, message: string): never {
+  const error: CustomError = new Error(message);
+  error.status = status;
+  throw error;
+}
+```
+
+Le type de retour `never` informe TypeScript que cette fonction ne retourne jamais (elle lance toujours une exception), permettant au compilateur de comprendre le flux de contrôle.
+
+**Avant (3 lignes) :**
+```typescript
+const error: CustomError = new Error('Utilisateur non trouvé');
+error.status = 404;
+throw error;
+```
+
+**Après (1 ligne) :**
+```typescript
+createHttpError(404, 'Utilisateur non trouvé');
+```
+
+#### Fichiers modifiés
+
+| Fichier | Occurrences remplacées |
+|---|---|
+| [auth.service.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/services/auth.service.ts) | 7 |
+| [enrollment.service.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/services/enrollment.service.ts) | 6 |
+| [scheduleSlot.service.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/services/scheduleSlot.service.ts) | 5 |
+| [course.service.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/services/course.service.ts) | 1 |
+| [user.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/user.controller.ts) | 9 |
+| [enrollment.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/enrollment.controller.ts) | 6 |
+| [scheduleSlot.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/scheduleSlot.controller.ts) | 12 |
+| [course.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/course.controller.ts) | 2 |
+| [auth.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/auth.controller.ts) | 2 |
+| **Total** | **~50 occurrences** |
+
+**Impact :** environ **100 lignes de code supprimées** (réduction de 3 lignes → 1 ligne × 50 occurrences).
+
+---
+
+### 8.2 Code Smell 2 : Code Dupliqué — Mapping User → DTO inline
+
+**Type de Code Smell :** Code dupliqué (Duplicated Code)  
+**Technique de refactoring :** Replace Inline Code with Function Call (Martin Fowler)
+
+#### Problème identifié
+
+Le mapping d'un modèle `User` vers un objet DTO est écrit **manuellement 4 fois** dans [auth.service.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/services/auth.service.ts) et **1 fois** dans [auth.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/auth.controller.ts) :
+
+```typescript
+// Bloc dupliqué (présent 4-5 fois)
+{
+  id: user.id,
+  login: user.login,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  role: user.role,
+  isPrivate: user.isPrivate === 1
+}
+```
+
+Alors qu'un `UserMapper.toDto()` existe déjà dans [user.mapper.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/mapper/user.mapper.ts) et fait **exactement la même chose**.
+
+#### Pourquoi c'est un problème
+
+1. **Incohérence potentielle** : si le format du DTO change (ex: ajout d'un champ `email`), il faut modifier 5 endroits au lieu d'un seul
+2. **Violation du SRP** : le service d'authentification ne devrait pas connaître les détails du mapping User → DTO
+3. **Mapper inutilisé** : le `UserMapper` existe mais n'est pas exploité partout, ce qui rend le code trompeur
+
+#### Refactoring appliqué
+
+Remplacement des 5 blocs inline par un appel à `UserMapper.toDto(user)` :
+
+**Avant (7 lignes) :**
+```typescript
+return {
+  id: user.id,
+  login: user.login,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  role: user.role,
+  isPrivate: user.isPrivate === 1
+};
+```
+
+**Après (1 ligne) :**
+```typescript
+return UserMapper.toDto(user);
+```
+
+#### Fichiers modifiés
+
+| Fichier | Changement |
+|---|---|
+| [auth.service.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/services/auth.service.ts) | 3 blocs inline → `UserMapper.toDto()` |
+| [auth.controller.ts](file:///Users/romainbouton/Documents/Cours/BUT3/Maintenance/manageschedulebackend/src/controllers/auth.controller.ts) | 1 bloc inline → `UserMapper.toDto()` |
+
+---
+
+### 8.3 Vérification du refactoring
+
+| Vérification | Résultat |
+|---|---|
+| Compilation TypeScript (`tsc --noEmit`) | ✅ Aucune erreur |
+| Cohérence des imports `createHttpError` | ✅ Importé dans tous les fichiers modifiés |
+| Cohérence des imports `UserMapper` | ✅ Importé dans `auth.service.ts` et `auth.controller.ts` |
+| Comportement fonctionnel préservé | ✅ Les erreurs HTTP sont lancées avec les mêmes codes et messages |
+

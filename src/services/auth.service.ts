@@ -2,7 +2,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/user.model';
 import { AuthResponseDTO, LoginDTO, RegisterDTO, ChangePasswordDTO, UpdateProfileDTO } from '../dto/auth.dto';
-import { CustomError } from '../middlewares/errorHandler';
+import { createHttpError } from '../middlewares/errorHandler';
+import { UserMapper } from '../mapper/user.mapper';
 
 export class AuthService {
   private readonly JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -14,15 +15,11 @@ export class AuthService {
 
     const existingUser = await User.findOne({ where: { login } });
     if (existingUser) {
-      const error: CustomError = new Error('Utilisateur déjà existant');
-      error.status = 409;
-      throw error;
+      createHttpError(409, 'Utilisateur déjà existant');
     }
 
     if (!['student', 'teacher'].includes(role)) {
-      const error: CustomError = new Error('Rôle invalide. Doit être student ou teacher');
-      error.status = 400;
-      throw error;
+      createHttpError(400, 'Rôle invalide. Doit être student ou teacher');
     }
 
     const hashedPassword = await bcrypt.hash(password, this.SALT_ROUNDS);
@@ -40,14 +37,7 @@ export class AuthService {
 
     return {
       token,
-      user: {
-        id: user.id,
-        login: user.login,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        isPrivate: user.isPrivate === 1
-      }
+      user: UserMapper.toDto(user)
     };
   }
 
@@ -56,30 +46,19 @@ export class AuthService {
 
     const user = await User.findOne({ where: { login } });
     if (!user) {
-      const error: CustomError = new Error('Identifiants invalides');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Identifiants invalides');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      const error: CustomError = new Error('Identifiants invalides');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Identifiants invalides');
     }
 
     const token = this.generateToken(user.id, user.login, user.role);
 
     return {
       token,
-      user: {
-        id: user.id,
-        login: user.login,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        isPrivate: user.isPrivate === 1
-      }
+      user: UserMapper.toDto(user)
     };
   }
 
@@ -88,16 +67,12 @@ export class AuthService {
 
     const user = await User.findByPk(userId);
     if (!user) {
-      const error: CustomError = new Error('Utilisateur non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Utilisateur non trouvé');
     }
 
     const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isCurrentPasswordValid) {
-      const error: CustomError = new Error('Mot de passe actuel incorrect');
-      error.status = 400;
-      throw error;
+      createHttpError(400, 'Mot de passe actuel incorrect');
     }
 
     const hashedNewPassword = await bcrypt.hash(newPassword, this.SALT_ROUNDS);
@@ -109,9 +84,7 @@ export class AuthService {
   public async updateProfile(userId: number, updateData: UpdateProfileDTO): Promise<AuthResponseDTO['user']> {
     const user = await User.findByPk(userId);
     if (!user) {
-      const error: CustomError = new Error('Utilisateur non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Utilisateur non trouvé');
     }
 
     if (updateData.firstName !== undefined) user.firstName = updateData.firstName;
@@ -120,14 +93,7 @@ export class AuthService {
 
     await user.save();
 
-    return {
-      id: user.id,
-      login: user.login,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isPrivate: user.isPrivate === 1
-    };
+    return UserMapper.toDto(user);
   }
 
   public verifyToken(token: string): { userId: number; login: string; role: string } {
@@ -139,9 +105,7 @@ export class AuthService {
         role: decoded.role
       };
     } catch (error) {
-      const customError: CustomError = new Error('Token invalide');
-      customError.status = 401;
-      throw customError;
+      createHttpError(401, 'Token invalide');
     }
   }
 
