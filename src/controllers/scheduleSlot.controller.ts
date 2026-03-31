@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Delete, Route, Path, Body, Tags, Security, Request } from "tsoa";
 import { scheduleSlotService, TimeSlot, ScheduleConflict } from "../services/scheduleSlot.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
-import { CustomError } from "../middlewares/errorHandler";
+import { createHttpError } from "../middlewares/errorHandler";
 import { ScheduleSlotDTO, CreateScheduleSlotDTO, ScheduleConflictCheckDTO } from "../dto/scheduleSlot.dto";
 import { ScheduleSlotMapper } from "../mapper/scheduleSlot.mapper";
 
@@ -13,9 +13,7 @@ export class ScheduleSlotController extends Controller {
   @Security("jwt", ["scheduleSlot:read"])
   public async getMySchedule(@Request() request: AuthenticatedRequest): Promise<any> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
 
     return scheduleSlotService.getUserSchedule(request.user.userId);
@@ -28,16 +26,12 @@ export class ScheduleSlotController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<any> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
 
     const canAccess = await this.canAccessUserSchedule(request.user.userId, request.user.role, userId);
     if (!canAccess) {
-      const error: CustomError = new Error('Access denied to this schedule');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'Access denied to this schedule');
     }
 
     return scheduleSlotService.getUserSchedule(userId);
@@ -50,15 +44,11 @@ export class ScheduleSlotController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<ScheduleSlotDTO> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
 
     if (request.user.role !== 'teacher') {
-      const error: CustomError = new Error('Only teachers can create schedule slots');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'Only teachers can create schedule slots');
     }
 
     const { courseId, dayOfWeek, startTime, endTime } = requestBody;
@@ -67,9 +57,7 @@ export class ScheduleSlotController extends Controller {
     const course = await courseService.courseService.getCourseById(courseId);
 
     if (!course || course.teacherId !== request.user.userId) {
-      const error: CustomError = new Error('You can only create schedule slots for your own courses');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'You can only create schedule slots for your own courses');
     }
 
     const timeSlot: TimeSlot = {
@@ -90,17 +78,13 @@ export class ScheduleSlotController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<{ canEnroll: boolean; conflicts: ScheduleConflict[] }> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
 
     const { userId, courseId } = requestBody;
 
     if (request.user.userId !== userId && request.user.role !== 'teacher') {
-      const error: CustomError = new Error('Permission denied');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'Permission denied');
     }
 
     return scheduleSlotService.canStudentEnrollInCourse(userId, courseId);
@@ -110,15 +94,11 @@ export class ScheduleSlotController extends Controller {
   @Security("jwt", ["course:read", "scheduleSlot:read"])
   public async getAvailableCourses(@Request() request: AuthenticatedRequest): Promise<any> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
 
     if (request.user.role !== 'student') {
-      const error: CustomError = new Error('Only students can view available courses');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'Only students can view available courses');
     }
 
 
@@ -146,9 +126,7 @@ export class ScheduleSlotController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<ScheduleSlotDTO[]> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
     const slots = await scheduleSlotService.getCourseSlots(courseId);
     return slots.map(slot => ScheduleSlotMapper.toDto(slot));
@@ -161,15 +139,11 @@ export class ScheduleSlotController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<void> {
     if (!request.user) {
-      const error: CustomError = new Error('Authentication required');
-      error.status = 401;
-      throw error;
+      createHttpError(401, 'Authentication required');
     }
 
     if (request.user.role !== 'teacher') {
-      const error: CustomError = new Error('Only teachers can delete schedule slots');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'Only teachers can delete schedule slots');
     }
 
     await scheduleSlotService.deleteScheduleSlot(id, request.user.userId);

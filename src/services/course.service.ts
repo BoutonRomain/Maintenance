@@ -2,6 +2,7 @@ import { CourseOutputDTO } from "../dto/course.dto";
 import { CourseMapper } from "../mapper/course.mapper";
 import { Course } from "../models/course.model";
 import { User } from "../models/user.model";
+import { createHttpError } from "../middlewares/errorHandler";
 
 export class CourseService {
 
@@ -79,9 +80,7 @@ export class CourseService {
 
           if (conflicts.length > 0) {
             const conflictNames = conflicts.map(c => c.conflictingCourse.name).join(', ');
-            const error: any = new Error(`L'enseignant a des conflits d'horaire avec : ${conflictNames}`);
-            error.status = 409;
-            throw error;
+            createHttpError(409, `L'enseignant a des conflits d'horaire avec : ${conflictNames}`);
           }
         }
       }

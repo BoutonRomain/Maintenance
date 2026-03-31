@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Delete, Route, Path, Body, Tags, Patch, Security } from "tsoa";
-import { CustomError } from "../middlewares/errorHandler";
+import { createHttpError } from "../middlewares/errorHandler";
 import { courseService } from "../services/course.service";
 import {
   CourseInputDTO,
@@ -22,9 +22,7 @@ export class CourseController extends Controller {
   public async getCourseById(@Path() id: number): Promise<CourseOutputDTO> {
     const course = await courseService.getCourseById(id);
     if (!course) {
-      let error: CustomError = new Error("Course not found");
-      error.status = 404;
-      throw error;
+      createHttpError(404, "Course not found");
     }
     return course;
   }
@@ -51,9 +49,7 @@ export class CourseController extends Controller {
     const { name, description, totalHours, teacherId } = requestBody;
     const updatedCourse = await courseService.updateCourse(id, name, description, totalHours, teacherId);
     if (!updatedCourse) {
-      let error: CustomError = new Error("Course not found");
-      error.status = 404;
-      throw error;
+      createHttpError(404, "Course not found");
     }
     return updatedCourse;
   }

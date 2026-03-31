@@ -2,7 +2,7 @@ import { ScheduleSlot } from "../models/scheduleSlot.model";
 import { Course } from "../models/course.model";
 import { User } from "../models/user.model";
 import { Enrollment } from "../models/enrollment.model";
-import { CustomError } from "../middlewares/errorHandler";
+import { createHttpError } from "../middlewares/errorHandler";
 import { Op } from "sequelize";
 
 export interface TimeSlot {
@@ -28,9 +28,7 @@ export class ScheduleService {
 
     const user = await User.findByPk(userId);
     if (!user) {
-      const error: CustomError = new Error('User not found');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'User not found');
     }
 
     if (user.role === 'teacher') {
@@ -160,17 +158,13 @@ export class ScheduleService {
     });
 
     if (!course) {
-      const error: CustomError = new Error('Cours non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Cours non trouvé');
     }
 
     if (course.teacherId) {
       const teacherConflicts = await this.checkUserScheduleConflicts(course.teacherId, timeSlot, courseId);
       if (teacherConflicts.length > 0) {
-        const error: CustomError = new Error(`L'enseignant a des conflits d'horaire avec : ${teacherConflicts.map(c => c.conflictingCourse.name).join(', ')}`);
-        error.status = 409;
-        throw error;
+        createHttpError(409, `L'enseignant a des conflits d'horaire avec : ${teacherConflicts.map(c => c.conflictingCourse.name).join(', ')}`);
       }
     }
 
@@ -190,9 +184,7 @@ export class ScheduleService {
 
     if (studentConflicts.length > 0) {
       const conflictingStudents = studentConflicts.map(c => c.conflictingCourse.name);
-      const error: CustomError = new Error(`Certains étudiants ont des conflits d'horaire avec : ${conflictingStudents.join(', ')}`);
-      error.status = 409;
-      throw error;
+      createHttpError(409, `Certains étudiants ont des conflits d'horaire avec : ${conflictingStudents.join(', ')}`);
     }
 
     return ScheduleSlot.create({
@@ -232,9 +224,7 @@ export class ScheduleService {
   public async getUserSchedule(userId: number): Promise<any> {
     const user = await User.findByPk(userId);
     if (!user) {
-      const error: CustomError = new Error('Utilisateur non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Utilisateur non trouvé');
     }
 
     if (user.role === 'teacher') {
@@ -311,9 +301,7 @@ export class ScheduleService {
     });
 
     if (!course) {
-      const error: CustomError = new Error('Cours non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Cours non trouvé');
     }
 
     return course.scheduleSlots || [];
@@ -328,15 +316,11 @@ export class ScheduleService {
     });
 
     if (!slot) {
-      const error: CustomError = new Error('Créneau horaire non trouvé');
-      error.status = 404;
-      throw error;
+      createHttpError(404, 'Créneau horaire non trouvé');
     }
 
     if (!slot.course || slot.course.teacherId !== teacherId) {
-      const error: CustomError = new Error('Permission refusée. Vous ne pouvez supprimer que les créneaux de vos propres cours.');
-      error.status = 403;
-      throw error;
+      createHttpError(403, 'Permission refusée. Vous ne pouvez supprimer que les créneaux de vos propres cours.');
     }
 
     await slot.destroy();

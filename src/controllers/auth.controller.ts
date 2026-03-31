@@ -2,6 +2,8 @@ import { Controller, Post, Get, Patch, Route, Body, Tags, Request, Security } fr
 import { authService } from "../services/auth.service";
 import { AuthResponseDTO, LoginDTO, RegisterDTO, ChangePasswordDTO, UpdateProfileDTO } from "../dto/auth.dto";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { createHttpError } from "../middlewares/errorHandler";
+import { UserMapper } from "../mapper/user.mapper";
 
 @Route("auth")
 @Tags("Authentication")
@@ -24,8 +26,7 @@ export class AuthController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<{ message: string }> {
     if (!request.user) {
-      this.setStatus(401);
-      throw new Error('Authentification requise');
+      createHttpError(401, 'Authentification requise');
     }
 
     await authService.changePassword(request.user.userId, requestBody);
@@ -39,8 +40,7 @@ export class AuthController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<AuthResponseDTO['user']> {
     if (!request.user) {
-      this.setStatus(401);
-      throw new Error('Authentification requise');
+      createHttpError(401, 'Authentification requise');
     }
 
     return authService.updateProfile(request.user.userId, requestBody);
@@ -50,25 +50,16 @@ export class AuthController extends Controller {
   @Security("jwt")
   public async getCurrentUser(@Request() request: AuthenticatedRequest): Promise<AuthResponseDTO['user']> {
     if (!request.user) {
-      this.setStatus(401);
-      throw new Error('Authentification requise');
+      createHttpError(401, 'Authentification requise');
     }
 
     const userService = await import('../services/user.service');
     const user = await userService.userService.getUserById(request.user.userId);
 
     if (!user) {
-      this.setStatus(404);
-      throw new Error('Utilisateur non trouvé');
+      createHttpError(404, 'Utilisateur non trouvé');
     }
 
-    return {
-      id: user.id!,
-      login: user.login,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isPrivate: user.isPrivate === 1
-    };
+    return UserMapper.toDto(user);
   }
 }

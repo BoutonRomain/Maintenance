@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Delete, Route, Path, Body, Tags, Patch, Security, Request } from "tsoa";
 import { EnrollmentDTO } from "../dto/enrollment.dto";
-import { CustomError } from "../middlewares/errorHandler";
+import { createHttpError } from "../middlewares/errorHandler";
 import { Enrollment } from "../models/enrollment.model";
 import { enrollmentService } from "../services/enrollment.service";
 import { ForeignKeyConstraintError } from "sequelize";
@@ -19,12 +19,9 @@ export class EnrollmentController extends Controller {
   public async getEnrollmentById(@Path() id: number): Promise<EnrollmentDTO | null> {
     let enrollment: Enrollment | null = await enrollmentService.getEnrollmentById(id);
     if (enrollment === null) {
-      let error: CustomError = new Error("Enrollment not found");
-      error.status = 404;
-      throw error;
-    } else {
-      return enrollment;
+      createHttpError(404, "Enrollment not found");
     }
+    return enrollment;
   }
 
 
@@ -40,15 +37,11 @@ export class EnrollmentController extends Controller {
     const course = await courseService.courseService.getCourseById(courseId);
 
     if (!course) {
-      const error: CustomError = new Error("Cours non trouvé");
-      error.status = 404;
-      throw error;
+      createHttpError(404, "Cours non trouvé");
     }
 
     if (!course.teacherId) {
-      const error: CustomError = new Error("Impossible de s'inscrire à un cours sans enseignant");
-      error.status = 400;
-      throw error;
+      createHttpError(400, "Impossible de s'inscrire à un cours sans enseignant");
     }
 
     return enrollmentService.createEnrollment(studentId, courseId, enrollmentAt, createAt, updateAt);
@@ -62,11 +55,7 @@ export class EnrollmentController extends Controller {
       await enrollmentService.deleteEnrollment(id);
     } catch (error) {
       if (error instanceof ForeignKeyConstraintError) {
-        let customError: CustomError = new Error(
-          "Impossible de supprimer l'inscription car elle est liée à d'autres enregistrements"
-        );
-        customError.status = 409;
-        throw customError;
+        createHttpError(409, "Impossible de supprimer l'inscription car elle est liée à d'autres enregistrements");
       }
       throw error;
     }
@@ -78,9 +67,7 @@ export class EnrollmentController extends Controller {
     const studentId = request.user?.userId;
 
     if (!studentId) {
-      let error: CustomError = new Error("Non autorisé");
-      error.status = 401;
-      throw error;
+      createHttpError(401, "Non autorisé");
     }
 
     await enrollmentService.deleteEnrollmentByStudentAndCourse(studentId, courseId);
@@ -102,11 +89,8 @@ export class EnrollmentController extends Controller {
       updateAt
     );
     if (updatedEnrollment === null) {
-      let error: CustomError = new Error("Inscription non trouvée");
-      error.status = 404;
-      throw error;
-    } else {
-      return updatedEnrollment;
+      createHttpError(404, "Inscription non trouvée");
     }
+    return updatedEnrollment;
   }
 }

@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Delete, Route, Path, Body, Tags, Patch, Security, Request } from "tsoa";
-import { CustomError } from "../middlewares/errorHandler";
+import { createHttpError } from "../middlewares/errorHandler";
 import { userService } from "../services/user.service";
 import { UserDTO, UpdateUserDTO } from "../dto/user.dto";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
@@ -13,9 +13,7 @@ export class UserController extends Controller {
   @Security("jwt", ["user:read"])
   public async getAllUsers(@Request() request: AuthenticatedRequest): Promise<UserDTO[]> {
     if (!request.user) {
-      let error: CustomError = new Error("Authentification requise");
-      error.status = 401;
-      throw error;
+      createHttpError(401, "Authentification requise");
     }
 
     const users = await userService.getAllUsers();
@@ -26,15 +24,11 @@ export class UserController extends Controller {
   @Security("jwt", ["user:read"])
   public async getMyStudents(@Request() request: AuthenticatedRequest): Promise<UserDTO[]> {
     if (!request.user) {
-      const error: CustomError = new Error("Authentification requise");
-      error.status = 401;
-      throw error;
+      createHttpError(401, "Authentification requise");
     }
 
     if (request.user.role !== 'teacher') {
-      const error: CustomError = new Error("Réservé aux enseignants");
-      error.status = 403;
-      throw error;
+      createHttpError(403, "Réservé aux enseignants");
     }
 
     const students = await userService.getMyStudents(request.user.userId);
@@ -48,16 +42,12 @@ export class UserController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<UserDTO> {
     if (!request.user) {
-      let error: CustomError = new Error("Authentification requise");
-      error.status = 401;
-      throw error;
+      createHttpError(401, "Authentification requise");
     }
 
     const user = await userService.getUserById(id);
     if (!user) {
-      let error: CustomError = new Error("Utilisateur non trouvé");
-      error.status = 404;
-      throw error;
+      createHttpError(404, "Utilisateur non trouvé");
     }
     return UserMapper.toDto(user);
   }
@@ -70,22 +60,16 @@ export class UserController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<UserDTO> {
     if (!request.user) {
-      let error: CustomError = new Error("Authentification requise");
-      error.status = 401;
-      throw error;
+      createHttpError(401, "Authentification requise");
     }
 
     if (request.user.userId !== id && request.user.role !== 'teacher') {
-      let error: CustomError = new Error("Vous ne pouvez modifier que votre propre profil");
-      error.status = 403;
-      throw error;
+      createHttpError(403, "Vous ne pouvez modifier que votre propre profil");
     }
 
     const user = await userService.getUserById(id);
     if (!user) {
-      let error: CustomError = new Error("Utilisateur non trouvé");
-      error.status = 404;
-      throw error;
+      createHttpError(404, "Utilisateur non trouvé");
     }
 
     if (requestBody.firstName !== undefined) user.firstName = requestBody.firstName;
@@ -104,13 +88,9 @@ export class UserController extends Controller {
     @Request() request: AuthenticatedRequest
   ): Promise<void> {
     if (!request.user) {
-      let error: CustomError = new Error("Authentification requise");
-      error.status = 401;
-      throw error;
+      createHttpError(401, "Authentification requise");
     }
 
-    let error: CustomError = new Error("La suppression d'utilisateur n'est pas autorisée");
-    error.status = 403;
-    throw error;
+    createHttpError(403, "La suppression d'utilisateur n'est pas autorisée");
   }
 }
